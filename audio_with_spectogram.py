@@ -300,7 +300,8 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.audio_controller = AudioController() 
+        self.audio_controller = AudioController()
+        self.sound_analyzer = SoundAnalyzer()
         self.worker_thread = None
         self.recorded_frames = None
         self.current_audio_filepath = None
@@ -506,7 +507,7 @@ class MainWindow(QMainWindow):
 
     def update_analysis_plots(self, y, sr, S_mel_db):
         """Clears the existing figure and draws new waveform and spectrogram plots on the canvas."""
-        
+
         # Clear both canvas figures
         self.analysis_canvas_1.figure.clear()  # Clears the waveform canvas
         self.analysis_canvas_2.figure.clear()  # Clears the spectrogram canvas
