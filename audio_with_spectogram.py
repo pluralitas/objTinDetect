@@ -58,6 +58,7 @@ class AudioController:
         if self.pyaudio_instance:
             self._find_and_verify_workable_device() # Changed from Pisound specific
 
+# --- Device Initialization and Configuration ---
     def initialize_pyaudio(self):
         try:
             self.pyaudio_instance = pyaudio.PyAudio()
@@ -118,11 +119,11 @@ class AudioController:
         print(f"Error: No suitable audio input device found supporting {TARGET_SAMPLE_RATE}Hz.")
         self.device_params = None
 
-
+# --- Audio Handling ---
     def is_ready(self):
         return self.device_params is not None
 
-    def save_audio_to_file(self, frames, filepath):
+    def save_audio_to_file(self, frames, filepath): 
         if not frames or not self.device_params: return False
         print(f"\nSaving audio to: {filepath}")
         try:
@@ -134,6 +135,7 @@ class AudioController:
             print(f"Error saving audio file: {e}")
             return False
 
+# --- Audio Analysis ---
     def compute_audio_analysis_data(self, frames):
         """
         Converts frames to a plottable audio array and computes the Log-Mel spectrogram data.
@@ -300,15 +302,17 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
+        # Initialize the audio controller, sound analyzer, and worker thread
         self.audio_controller = AudioController()
         self.sound_analyzer = SoundAnalyzer()
         self.worker_thread = None
         self.recorded_frames = None
         self.current_audio_filepath = None
+        self.initUI()  # Initialize the UI components
+        self.check_audio_device_status()  # Check the audio device status when the window starts
 
-        self.initUI()
-        self.check_audio_device_status() 
 
+# --- Initialize the UI ---
     def initUI(self):
         self.setWindowTitle(f"OBJECTIVE TINNITUS RECORDER") 
         self.setGeometry(100, 100, 900, 700) 
@@ -428,7 +432,7 @@ class MainWindow(QMainWindow):
         self.data_stats_label = QLabel("Live: 0.00 MB @ 0.00 MB/s")
         self.statusBar().addPermanentWidget(self.data_stats_label)
 
-
+# --- Setup UI Methods ---
     def setup_idle_ui(self):
         layout = QVBoxLayout(self.idle_widget)
         self.device_status_label_idle = QLabel("Checking for a suitable audio device...") 
@@ -445,6 +449,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(start_instruction_label)
         layout.addStretch()
 
+# --- Setup Recording UI ---
     def setup_recording_ui(self):
         layout = QVBoxLayout(self.recording_widget)
         self.recording_progress_bar = QProgressBar()
@@ -461,6 +466,7 @@ class MainWindow(QMainWindow):
         self.live_waveform_placeholder.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         layout.addWidget(self.live_waveform_placeholder)
 
+# --- Analysis Page Setup ---
     def setup_analysis_page(self):
         layout = QVBoxLayout(self.analysis_page)  # Use vertical layout to stack elements one on top of the other
         layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
@@ -504,7 +510,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.frame_spectrogram)  # Add the spectrogram frame to the vertical layout
 
 
-
+# --- Generate Plots ---
     def update_analysis_plots(self, y, sr, S_mel_db):
         """Clears the existing figure and draws new waveform and spectrogram plots on the canvas."""
 
@@ -561,6 +567,7 @@ class MainWindow(QMainWindow):
         self.analysis_canvas_2.draw()
         print("Analysis plots updated in the GUI.")
 
+#--- Analysis Algorithm ---
     def run_sound_check(self):
         """Check if sound is detected and update result label."""
         if not self.recorded_frames:  # Direct check for 'recorded_frames' (no need for hasattr)
@@ -585,7 +592,7 @@ class MainWindow(QMainWindow):
             self.result_label.adjustSize()  # Adjust the size of the label to fit the text
             self.result_label.show()  # Ensure the result label is visible
     
-
+# --- Finds input device ---
     def check_audio_device_status(self):
         """
         Updates the status of the audio device and notifies the user if a valid device is found.
@@ -613,7 +620,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Device Error", msg + "\nThe application might not function correctly.")
             self.start_stop_button.setEnabled(False)
 
-
+# --- Event Handler for start stop button ---
     def handle_start_stop(self):
         if self.worker_thread and self.worker_thread.isRunning(): 
             self.update_status_bar_text("Stopping recording early...")
@@ -646,6 +653,7 @@ class MainWindow(QMainWindow):
             self.worker_thread.finished.connect(self.on_worker_thread_actually_finished)
             self.worker_thread.start()
 
+# --- Update recording data size ---
     def update_recording_progress(self, elapsed_seconds, remaining_seconds):
         self.recording_progress_bar.setValue(elapsed_seconds)
         self.recording_progress_bar.setFormat(f"{remaining_seconds}s remaining")
@@ -662,6 +670,7 @@ class MainWindow(QMainWindow):
     def update_status_bar_text(self, message):
         self.status_label.setText(f"Status: {message}")
 
+# --- Handle recording completion ---
     def handle_recording_completion(self, frames):
         self.recorded_frames = frames
         self.start_stop_button.setText("START")
@@ -692,7 +701,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Plot Error", "Failed to compute analysis data from recording.")
             self.reset_ui_to_idle_state_internal()
 
-
+# --- Handle Save As functionality ---
     def handle_save_as(self):
         if not self.recorded_frames:
             QMessageBox.warning(self, "No Data", "No audio data to save.")
@@ -728,7 +737,7 @@ class MainWindow(QMainWindow):
         self.reset_ui_to_idle_state_internal() 
         self.finish_reset_button.setEnabled(True) 
 
-
+# --- Resets start stop button ---
     def on_worker_thread_actually_finished(self): 
         if not (self.worker_thread and self.worker_thread.isRunning()): 
             self.start_stop_button.setText("START")
@@ -737,12 +746,13 @@ class MainWindow(QMainWindow):
             if self.worker_thread: 
                 self.worker_thread = None
 
-
+# --- Handle Finish/Reset button ---
     def handle_finish_reset(self): 
         self.update_status_bar_text("Resetting to idle state...")
         self.reset_ui_to_idle_state_internal()
         self.check_audio_device_status() 
 
+# --- Reset UI to Idle State ---
     def reset_ui_to_idle_state_internal(self):
         self.status_label.setText("Status: Ready" if self.audio_controller.is_ready() else "Audio device not ready") 
         self.start_stop_button.setText("START")
@@ -760,6 +770,7 @@ class MainWindow(QMainWindow):
             self.analysis_figure.clear()
             self.analysis_canvas.draw()
 
+# --- Close Event ---
     def closeEvent(self, event): 
         self.update_status_bar_text("Exiting application...")
         QApplication.processEvents() 
@@ -825,7 +836,6 @@ class MainWindow(QMainWindow):
                 self.width() - self.exit_icon_button.width() - 10,
                 10
             )
-
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
