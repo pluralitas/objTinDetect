@@ -23,7 +23,7 @@ from PyQt5.QtCore import QThread, pyqtSignal, Qt, QTimer
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import QLabel
 from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtCore import QTimer
+
 
 # --- Configuration ---
 # TARGET_DEVICE_NAME_SUBSTRING is removed, the script will find any compatible device.
@@ -31,8 +31,8 @@ TARGET_SAMPLE_RATE = 192000
 TARGET_CHANNELS = 1 
 TARGET_FORMAT = pyaudio.paInt16 
 CHUNK_SIZE = 4096
-DEFAULT_OUTPUT_DIR = "gui_recordings_192khz_30s" # More generic name
-FIXED_RECORDING_DURATION_SECONDS = 30
+DEFAULT_OUTPUT_DIR = "OBJTIN Recording" # More generic name
+FIXED_RECORDING_DURATION_SECONDS = 30 #Duration of each recording in seconds
 os.makedirs(DEFAULT_OUTPUT_DIR, exist_ok=True)
 
 # --- Spectrogram Parameters ---
@@ -40,6 +40,14 @@ SPEC_N_FFT = 8192
 SPEC_HOP_LENGTH = 2048    
 SPEC_N_MELS = 128         
 SPEC_WINDOW = 'hamming'   
+
+# --- Sound Detection Parameters ---
+CHUNK_DURATION_MS = 50 # Duration of each chunk in milliseconds
+RELATIVE_THRESHOLD = 0.5 # Relative RMS threshold for sound detection
+DISTANCE = 7  # Minimum d  istance between peaks in samples (35ms apart) where 1 sample = 0.05sec after cropping RMS waveform
+# Pulsatile BPM detection thresholds
+PULSATILE_BPM_MIN = 40
+PULSATILE_BPM_MAX = 180
 
 # --- Backend Logic Class (AudioController) ---
 class AudioController:
@@ -155,6 +163,7 @@ class AudioController:
             self.pyaudio_instance.terminate()
             print("PyAudio instance terminated.")
 
+
 # --- PyQt5 Worker Thread for Recording ---
 class AudioWorker(QThread):
     progress_updated = pyqtSignal(int, int)
@@ -212,6 +221,76 @@ class ClickableLabel(QLabel):
 
     def mousePressEvent(self, event):
         self.clicked.emit()
+
+# --- Algorithm Class for Sound Analysis ---
+class SoundAnalyzer:
+    """
+    Provides methods for analyzing audio data to detect sound events
+    and classify them as pulsatile or non-pulsatile.
+    """
+    def __init__(self):
+        # No specific initialization needed for these static-like methods
+        pass
+
+    def analyze_audio(self, y, sample_rate):
+        """
+        Analyze audio to detect sound presence and classify it as pulsatile or non-pulsatile.
+        Returns a tuple: (sound_detected, pulsatile_result).
+        """
+        if y is None or len(y) == 0:
+            return False, "Error"  # Return "Error" if no audio data is available
+
+        # Normalize the waveform
+        y = y.astype(np.float32)
+        y /= np.max(np.abs(y))  # Normalize the audio signal to [-1, 1]
+
+        # === Absolute waveform ===
+        abs_waveform = np.abs(y)
+
+        # === Chunking ===
+        chunk_size = int(sample_rate * (CHUNK_DURATION_MS / 1000))
+        num_chunks = len(abs_waveform) // chunk_size
+        usable_waveform = abs_waveform[:num_chunks * chunk_size]
+        chunks = usable_waveform.reshape(num_chunks, chunk_size)
+
+        # === RMS computation ===
+        rms_values = np.sqrt(np.mean(chunks**2, axis=1))
+        mean_rms = np.mean(rms_values)
+        std_rms = np.std(rms_values)
+
+        # === Sound Detection (Relative RMS Threshold) ===
+        relative_ratio = std_rms / mean_rms
+        sound_detected = relative_ratio > RELATIVE_THRESHOLD  # If ratio exceeds threshold, sound is detected
+
+        # If sound is not detected, return early with "No Sound"
+        if not sound_detected:
+            return False, "No Sound"  # No sound detected, return "No Sound"
+
+        # === Threshold RMS to create cropped RMS (set values below threshold to 0) ===
+        rms_threshold = mean_rms + std_rms
+        cropped_rms = np.copy(rms_values)
+        cropped_rms[cropped_rms < rms_threshold] = 0
+
+        # === Peak Detection on Cropped RMS ===
+        peaks, _ = find_peaks(cropped_rms, distance=DISTANCE)
+
+        # Map the peak indices to the time axis
+        time_axis = np.arange(len(cropped_rms)) * (CHUNK_DURATION_MS / 1000)  # Time in seconds (50 ms chunks)
+        peak_times = time_axis[peaks]  # Retrieve time for each marked peak
+
+        # Calculate the intervals between consecutive peaks (in seconds)
+        peak_intervals = np.diff(peak_times)
+
+        # Calculate the average peak interval
+        average_peak_interval = np.mean(peak_intervals)
+
+        # Calculate BPM (60 seconds in a minute)
+        bpm = 60 / average_peak_interval
+
+        # === Pulsatile vs Non-Pulsatile Classification ===
+        pulsatile_result = "Pulsatile" if PULSATILE_BPM_MIN <= bpm <= PULSATILE_BPM_MAX else "Non-Pulsatile"
+
+        return True, pulsatile_result  # Return sound detection status and pulsatile classification
 
 # --- PyQt5 Main Window ---
 class MainWindow(QMainWindow):
@@ -434,8 +513,6 @@ class MainWindow(QMainWindow):
 
         # --- Plot on the first canvas (Waveform) ---
         ax_waveform = self.analysis_canvas_1.figure.add_subplot(1, 1, 1)  # Only one subplot for the waveform
-
-        # Plot the waveform on the first canvas
         librosa.display.waveshow(y, sr=sr, ax=ax_waveform, color='darkcyan')
 
         # Remove axis, labels, and title for the waveform plot
@@ -447,16 +524,11 @@ class MainWindow(QMainWindow):
         ax_waveform.spines['bottom'].set_visible(False)  # Hide bottom spine
         ax_waveform.set_title('')  # Remove title
 
-        # Remove the extra background around the plot area (fill the canvas)
-        self.analysis_canvas_1.figure.patch.set_facecolor('white')  # Set background color of figure
-
-        # Adjust layout to fully fill the canvas and prevent overlapping
-        self.analysis_canvas_1.figure.subplots_adjust(left=0, right=1, top=1, bottom=0)  # Adjust to fill bottom of the canvas
+        # Adjust layout
+        self.analysis_canvas_1.figure.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
         # --- Plot on the second canvas (Spectrogram) ---
         ax_spectrogram = self.analysis_canvas_2.figure.add_subplot(1, 1, 1)  # Only one subplot for the spectrogram
-
-        # Plot the Mel Spectrogram on the second canvas
         if S_mel_db is not None:
             librosa.display.specshow(S_mel_db, sr=sr, hop_length=SPEC_HOP_LENGTH, x_axis='time', y_axis='mel', ax=ax_spectrogram, fmax=sr/2, cmap='viridis')
 
@@ -471,21 +543,13 @@ class MainWindow(QMainWindow):
         ax_spectrogram.spines['bottom'].set_visible(False)  # Hide bottom spine
         ax_spectrogram.set_title('')  # Remove title
 
-        # Remove the extra background around the plot area (fill the canvas)
-        self.analysis_canvas_2.figure.patch.set_facecolor('white')  # Set background color of figure
-
-        # Adjust layout to fully fill the canvas and prevent overlapping
-        self.analysis_canvas_2.figure.subplots_adjust(left=0, right=1, top=1, bottom=0)  # Adjust to fill bottom of the canvas
+        # Adjust layout
+        self.analysis_canvas_2.figure.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
         # --- Ensure the result label is shown properly ---
         if self.result_label:
-            result_text = "Sound" if self.detect_sound_presence(y) else "Noise"
-            self.result_label.setText(result_text)  # Update the result label text (Sound or Noise)
-            self.result_label.adjustSize()  # Adjust the size of the label to fit the text
-            self.result_label.show()  # Make sure the result label is visible
-
-            # Print the geometry for debugging
-            print(f"Result Label Position: {self.result_label.geometry()}")
+            # The result is already handled in run_sound_check, no need to handle it here
+            pass
 
         # Adjust the result display box layout, making sure it's not covered by the plot
         self.result_frame.setFixedHeight(100)  # Set the height of the result display box
@@ -496,74 +560,57 @@ class MainWindow(QMainWindow):
         self.analysis_canvas_2.draw()
         print("Analysis plots updated in the GUI.")
 
-
-    def detect_sound_presence(self, y):
-            if y is None or len(y) == 0:
-                return False
-
-            sample_rate = self.audio_controller.device_params['rate']
-            y = y.astype(np.float32)
-            y /= np.max(np.abs(y))  # Normalize
-
-            # === Absolute waveform ===
-            abs_waveform = np.abs(y)
-
-            # === Chunking ===
-            CHUNK_DURATION_MS = 50
-            chunk_size = int(sample_rate * (CHUNK_DURATION_MS / 1000))
-            num_chunks = len(abs_waveform) // chunk_size
-            usable_waveform = abs_waveform[:num_chunks * chunk_size]
-            chunks = usable_waveform.reshape(num_chunks, chunk_size)
-
-            # === RMS computation ===
-            rms_values = np.sqrt(np.mean(chunks**2, axis=1))
-            mean_rms = np.mean(rms_values)
-            std_rms = np.std(rms_values)
-            relative_ratio = std_rms / mean_rms
-            print(f"[DEBUG] Relative RMS ratio (std/mean): {relative_ratio:.4f}")
-
-            # === Classification B threshold ===
-            RELATIVE_THRESHOLD = 0.5
-            return relative_ratio > RELATIVE_THRESHOLD #returns true if sound is detected, false otherwise
-        
     def run_sound_check(self):
-            """Check if sound is detected and update result label."""
-            
-            if not hasattr(self, 'recorded_frames') or not self.recorded_frames:
-                return
-            
-            y, sr, _ = self.audio_controller.compute_audio_analysis_data(self.recorded_frames)
-            if y is None:
-                return
-            
-            has_sound = self.detect_sound_presence(y)
-            result_text = "✅ Sound" if has_sound else "❌ Noise"
+        """Check if sound is detected and update result label."""
+        if not self.recorded_frames:  # Direct check for 'recorded_frames' (no need for hasattr)
+            return
 
-            # Update the result label with the appropriate text (Sound/Noise)
-            if self.result_label:
-                self.result_label.setText(result_text)  # Display the result (Sound or Noise)
-                self.result_label.adjustSize()  # Adjust the size of the label to fit the text
-                self.result_label.show()  # Ensure the result label is visible
+        y, sr, _ = self.audio_controller.compute_audio_analysis_data(self.recorded_frames)
+        if y is None:
+            return
 
-    def check_audio_device_status(self): 
-        self.update_status_bar_text("Checking for a suitable audio device...") 
+        # Analyze the audio: Detect sound presence and classify as Pulsatile or Non-Pulsatile
+        sound_detected, result_text = self.sound_analyzer.analyze_audio(y, sr)
+
+        # If sound is detected, you could log or perform additional checks
+        if sound_detected:
+            print("Sound detected, proceeding with classification...")
+        else:
+            print("No sound detected.")
+
+        # Update the result label with the appropriate text (No Sound, Pulsatile, or Non-Pulsatile)
+        if self.result_label:
+            self.result_label.setText(result_text)  # Display the result (Pulsatile, Non-Pulsatile, or No Sound)
+            self.result_label.adjustSize()  # Adjust the size of the label to fit the text
+            self.result_label.show()  # Ensure the result label is visible
+    
+
+    def check_audio_device_status(self):
+        """
+        Updates the status of the audio device and notifies the user if a valid device is found.
+        """
+        self.update_status_bar_text("Checking for a suitable audio device...")
         QApplication.processEvents()
-        if self.audio_controller: self.audio_controller.close()
-        self.audio_controller = AudioController() 
-        if self.audio_controller.is_ready() and self.audio_controller.device_params:
+
+        # Ensure audio controller is initialized
+        if not self.audio_controller.is_ready():
+            self.audio_controller = AudioController()
+
+        if self.audio_controller.is_ready():
             dev_name = self.audio_controller.device_params['name']
             dev_rate = self.audio_controller.device_params['rate']
-            msg = f"Device Ready: {dev_name} @ {dev_rate}Hz" 
+            msg = f"Device Ready: {dev_name} @ {dev_rate}Hz"
             self.update_status_bar_text(msg)
-            if hasattr(self, 'device_status_label_idle'): self.device_status_label_idle.setText(msg)
             self.start_stop_button.setEnabled(True)
+            if hasattr(self, 'device_status_label_idle'):
+                self.device_status_label_idle.setText(msg)
         else:
-            msg = f"No input device found supporting {TARGET_SAMPLE_RATE}Hz. Check console." 
+            msg = f"No input device found supporting {TARGET_SAMPLE_RATE}Hz. Check console."
             self.update_status_bar_text(msg)
-            if hasattr(self, 'device_status_label_idle'): self.device_status_label_idle.setText(msg + "\nTry re-plugging or check audio settings.")
+            if hasattr(self, 'device_status_label_idle'):
+                self.device_status_label_idle.setText(msg + "\nTry re-plugging or check audio settings.")
             QMessageBox.critical(self, "Device Error", msg + "\nThe application might not function correctly.")
             self.start_stop_button.setEnabled(False)
-        self.reset_ui_to_idle_state_internal()
 
 
     def handle_start_stop(self):
@@ -657,7 +704,7 @@ class MainWindow(QMainWindow):
         default_filename = f"rec_{dev_name}_{rate}Hz_{ch}ch_{timestamp}.wav"
         
         filepath, _ = QFileDialog.getSaveFileName(self, "Save Audio As", 
-            os.path.join(DEFAULT_OUTPUT_DIR, default_filename), "WAV files (*.wav)")
+            os.path.join(default_filename, DEFAULT_OUTPUT_DIR), "WAV files (*.wav)")
 
         if filepath:
             self.current_audio_filepath = filepath
@@ -673,8 +720,6 @@ class MainWindow(QMainWindow):
                 QMessageBox.critical(self, "Save Error", "Failed to save audio file.")
         else:
             self.update_status_bar_text("Save As cancelled.")
-
-
 
     def on_recording_error_and_reset(self, error_message):
         self.update_status_bar_text(f"Recording Error!")
