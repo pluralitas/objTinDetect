@@ -31,7 +31,7 @@ TARGET_SAMPLE_RATE = 192000
 TARGET_CHANNELS = 1 
 TARGET_FORMAT = pyaudio.paInt16 
 CHUNK_SIZE = 4096
-DEFAULT_OUTPUT_DIR = "OBJTIN Recording" # More generic name
+DEFAULT_OUTPUT_DIR = "OBJTIN Recording" # Folder name for saving recordings
 FIXED_RECORDING_DURATION_SECONDS = 30 #Duration of each recording in seconds
 os.makedirs(DEFAULT_OUTPUT_DIR, exist_ok=True)
 
@@ -42,7 +42,7 @@ SPEC_N_MELS = 128
 SPEC_WINDOW = 'hamming'   
 
 # --- Sound Detection Parameters ---
-CHUNK_DURATION_MS = 50 # Duration of each chunk in milliseconds
+WINDOW_DURATION_MS = 50 # Duration of each window in milliseconds
 RELATIVE_THRESHOLD = 0.5 # Relative RMS threshold for sound detection
 DISTANCE = 7  # Minimum d  istance between peaks in samples (35ms apart) where 1 sample = 0.05sec after cropping RMS waveform
 # Pulsatile BPM detection thresholds
@@ -287,7 +287,7 @@ class SoundAnalyzer:
         abs_waveform = np.abs(y)
 
         # === Chunking ===
-        chunk_size = int(sample_rate * (CHUNK_DURATION_MS / 1000))
+        chunk_size = int(sample_rate * (WINDOW_DURATION_MS / 1000))
         num_chunks = len(abs_waveform) // chunk_size
         usable_waveform = abs_waveform[:num_chunks * chunk_size]
         chunks = usable_waveform.reshape(num_chunks, chunk_size)
@@ -314,7 +314,7 @@ class SoundAnalyzer:
         peaks, _ = find_peaks(cropped_rms, distance=DISTANCE)
 
         # Map the peak indices to the time axis
-        time_axis = np.arange(len(cropped_rms)) * (CHUNK_DURATION_MS / 1000)  # Time in seconds (50 ms chunks)
+        time_axis = np.arange(len(cropped_rms)) * (WINDOW_DURATION_MS / 1000)  # Time in seconds (50 ms chunks)
         peak_times = time_axis[peaks]  # Retrieve time for each marked peak
 
         # Calculate the intervals between consecutive peaks (in seconds)
