@@ -23,7 +23,7 @@ Charger: [Raspberry Pi 5 charger](https://www.raspberrypi.com/products/27w-power
 
 ## Setup
 Front Screen display
-![Front Screen display](Images\Front_screen_display.jpeg)
+![Front View](Images\Front_screen_display.jpeg)
 
 Bottom View
 ![Bottom View](Images\Bottom_View.jpeg)
@@ -37,7 +37,7 @@ Back View
 ### Notes on the hardware setup
 i had used 3 30mm + 10mm M2.5 standoffs to elvate the Pi Sound so that the DSI cable is not squished im between the heat sink and Pi Sound. The 2x40 stackable pin header was used to extend the pin's length so that the Raspberry Pi 5 GPIO pins can reach the Pi Sound.
 
-## Objective Tinnitus Recorder
+## Objective Tinnitus Recorder Code audio_with_spectrogram.py
 
 This application is a PyQt5-based graphical user interface (GUI) for recording audio, visualizing it as a waveform and a Mel spectrogram, and performing real-time analysis to detect and classify sounds as pulsatile or non-pulsatile. It is designed to find a compatible audio device automatically, record for a fixed duration, and then present the analysis results.
 
@@ -60,40 +60,125 @@ You can customize the application's behavior by modifying the constants defined 
 ### Audio Recording Settings
 These settings control the input device's configuration and the recording process.
 
-- **TARGET_SAMPLE_RATE**: The sample rate in Hz for recording. The application will search for a device that supports this rate. Default: 192000.
+- **TARGET_SAMPLE_RATE**: The sample rate in Hz for recording. The application will search for a device that supports this rate.
 
-- **TARGET_CHANNELS**: The number of audio channels. Default: 1 (Mono).
+- **TARGET_CHANNELS**: The number of audio channels.
 
 - **TARGET_FORMAT**: The data format for the audio stream. pyaudio.paInt16 represents 16-bit audio.
 
-- **CHUNK_SIZE**: The number of audio frames per buffer. A smaller size may reduce latency but increase CPU usage. Default: 4096.
+- **CHUNK_SIZE**: The number of audio frames per buffer. A smaller size may reduce latency but increase CPU usage.
 
-- **DEFAULT_OUTPUT_DIR**: The name of the folder where recordings will be saved by default. Default: "OBJTIN Recording".
+- **DEFAULT_OUTPUT_DIR**: The name of the folder where recordings will be saved by default.
 
-- **FIXED_RECORDING_DURATION_SECONDS**: The duration of each recording in seconds. Default: 30.
+- **FIXED_RECORDING_DURATION_SECONDS**: The duration of each recording in seconds.
 
 ***
 ### Spectrogram Parameters
 These settings control the appearance and detail of the Log-Mel spectrogram.
 
-- **SPEC_N_FFT**: The length of the Fast Fourier Transform (FFT) window. A larger value increases frequency resolution but decreases time resolution. Default: 8192.
+- **SPEC_N_FFT**: The length of the Fast Fourier Transform (FFT) window. A larger value increases frequency resolution but decreases time resolution.
 
-- **SPEC_HOP_LENGTH**: The number of audio samples between adjacent FFT windows. A smaller value increases the overlap and the time resolution of the spectrogram. Default: 2048.
+- **SPEC_HOP_LENGTH**: The number of audio samples between adjacent FFT windows. A smaller value increases the overlap and the time resolution of the spectrogram.
 
-- **SPEC_N_MELS**: The number of Mel bands to generate, which determines the vertical resolution of the spectrogram. Default: 128.
+- **SPEC_N_MELS**: The number of Mel bands to generate, which determines the vertical resolution of the spectrogram.
 
-- **SPEC_WINDOW**: The window function to apply before the FFT. Options include 'hamming', 'hann', 'blackman', etc. Default: 'hamming'.
+- **SPEC_WINDOW**: The window function to apply before the FFT. Options include 'hamming', 'hann', 'blackman', etc.
 
 ***
 ### Sound Detection and Analysis Parameters
 These values tune the algorithm that classifies the audio.
 
-- **WINDOW_DURATION_MS**: The duration (in milliseconds) of each chunk used to calculate the RMS of the signal. This affects the time resolution of the peak detection. Default: 50.
+- **WINDOW_DURATION_MS**: The duration (in milliseconds) of each chunk used to calculate the RMS of the signal. This affects the time resolution of the peak detection.
 
-- **RELATIVE_THRESHOLD**: A ratio (std_dev / mean_rms) used to determine if a significant sound is present. A higher value makes the detection less sensitive. Default: 0.5.
+- **RELATIVE_THRESHOLD**: A ratio (std_dev / mean_rms) used to determine if a significant sound is present. A higher value makes the detection less sensitive.
 
-- **DISTANCE**: The minimum required distance (in number of RMS samples) between detected peaks. This helps prevent detecting multiple peaks for a single sound event. Default: 7.
+- **DISTANCE**: The minimum required distance (in number of RMS samples) between detected peaks. This helps prevent detecting multiple peaks for a single sound event.
 
-- **PULSATILE_BPM_MIN**: The minimum beats-per-minute (BPM) to be classified as "Pulsatile". Default: 40.
+- **PULSATILE_BPM_MIN**: The minimum beats-per-minute (BPM) to be classified as "Pulsatile".
 
-- **PULSATILE_BPM_MAX**: The maximum beats-per-minute (BPM) to be classified as "Pulsatile". Default: 180.
+- **PULSATILE_BPM_MAX**: The maximum beats-per-minute (BPM) to be classified as "Pulsatile".
+
+***
+## Class description
+
+### `AudioController`
+
+The AudioController class serves as the backend for all low-level audio operations. It abstracts the complexities of interacting with the pyaudio library and handles audio device management and data processing.
+
+- Device Management
+    - Initialize pyaudio instance.
+    - Searches the system for a compatible audio input device that matches the configuration needed.
+    - Returns a True if the suitable input device is found.
+    - Stores the parameters of the input device.
+
+- Audio Processing
+    - Saves raw recorded audio frames into a `.wav`  file.
+    - Converts raw byte frames into a Numpy array (`y`).
+    - Generates the Log-Mel Spectrogram (`S_mel_db`).
+
+- Stopping
+    - Uses a `close()` to terminate pyaudio when closing application.
+***
+### `AudioWorker`
+
+This class is a QThread designed to perform the audio recording in the background. By offloading the recording task to a separate thread, it ensures the main application window remains responsive and does not freeze during the recording process.
+
+- Background Recording
+    - The `run` method creates a new pyaudio stream to continuously read audio data in chunks `CHUNK_SIZE` until the recording is stop automatically (`FIXED_RECORDING_DURATION_SECONDS`) or manually (Stop Button).
+
+- UI Update
+    - Uses `pyqtSignal` to update on the `MainWindow`.
+    - `progress_updated`: Emits the elapsed and remaining time to update the progress bar.
+    - `status_updated`: Emits status messages to be displayed in the UI.
+    - `recording_finished`: Emits the list of recorded audio frames back to the main window upon successful completion.
+    - `recording_error`: Emits an error message if an exception occurs during the recording process.
+
+- Stopping
+    - Uses a `stop()` to allos the main thread to interrupt the recording loop early when the user uses the Stop Button.
+***
+### `ClickableLabel`
+A simple class that extends `Qlabel` to add a click functionality.
+***
+### `SoundAnalyser`
+This class is the core algorithm for analyzing the recorded audio to determine if it contains sounds and then classify it into pulsatile or non-pulsatile.
+
+- Audio Analysis
+    - Takes in the raw audio waveform (`y`) and sample rate (`sr`)
+    - Normalises the audio signal to [-1,1]
+
+- Sound Detection
+    - Computes the rms of the graph to get the power of the signal
+    - Determines if a significant signals is present by comparing the standard deviation of the RMS values to their mean (`relative_ratio` > `RELATIVE_THRESHOLD`).
+    - Returns a true value if there is sound detected or else a false value and "No Sound" text to be displayed
+
+- Pulsatile Classification
+    - If sound is detected, it crops the waveform to remove the noise floor. Afterwards it performs peak detection on the cropped rms waveform(`cropped_rms`) to find the distinct peaks.
+    - Calculates the intervals between these peaks to determine an average Beats per Minute (BPM)
+    - Classfies the sound as "Pulsatile" or "Non-Pulsatile" based on whether the calculated BPM falls within the `PULSATILE_BPM_MIN` and `PULSATILE_BPM_MAX thresholds`.
+***
+### `MainWindow`
+The MainWindow class controls the UI of the application. It inherits from QMainWindow and is responsible for creating the user interface, managing the application's state, and coordinating the interactions between the user and the backend classes (`AudioController`, `AudioWorker`, `SoundAnalyzer`).
+
+- UI Management
+    - Builds and Organise all the UI elements (Button, labels, progress bar and layouts)
+    - Uses `QstackedWidget` to manange the 3 primary application pages (idle, Recording and Analysis)
+    - Embeds Matplotlib `FigureCanvas` widgets to display the waveform and spectrogram plots
+
+- State and Logic Controls
+    - Initialise and hold instances of `Audiocontroller` and `SoundAnalyser` 
+    - Manages the application's flow: Checking device status --> start recording --> handling record completion --> resetting for a new recording or closing the application.
+
+- Event Handlling
+    - `handle_start_stop()`: Starts or stops the `AudioWorker` thread.
+    - `handle_save_as()`: Opens a file dialog and saves the recorded audio by calling `audio_controller.save_audio_to_file()`.
+    - `handle_finish_reset()`: Resets the UI and application state back to idle.
+    - `handle_recording_completion()`: A slot that receives the recorded data from `AudioWorker`, triggers the analysis and plotting, and updates the UI to the analysis page.
+
+- UI Updates
+    - Connects to signals from the AudioWorker to update the progress bar and status messages in real-time.
+    - Calls `update_analysis_plots()` to render the waveform and spectrogram visualizations after a recording is complete.
+    - Manages the visibility and content of the result label ("Pulsatile", "Non-Pulsatile", "No Sound", "Error").
+
+- Closing event
+    - Handles the application's `closeEvent` to ensure the `AudioWorker` thread is stopped and the `AudioController`'s resources are released properly upon exit.
+***
