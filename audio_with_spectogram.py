@@ -26,7 +26,6 @@ from PyQt5.QtCore import pyqtSignal
 
 
 # --- Configuration ---
-# TARGET_DEVICE_NAME_SUBSTRING is removed, the script will find any compatible device.
 TARGET_SAMPLE_RATE = 192000 
 TARGET_CHANNELS = 1 
 TARGET_FORMAT = pyaudio.paInt16 
