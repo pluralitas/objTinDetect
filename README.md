@@ -43,7 +43,7 @@ This application is a PyQt5-based graphical user interface (GUI) for recording a
 
 ## Requirements
 
-To run this application, you will need to have Python installed, along with the following libraries:
+To run this application, you will need to have Python 3.9.21 installed, along with the following libraries:
 
 - **PyQt5:** For the graphical user interface.
 - **PyAudio:** To capture audio from the microphone.
