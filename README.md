@@ -10,9 +10,9 @@ This is a device used to detect objective tinnitus in the ear canal using a inea
 - Charger: [Raspberry Pi 5 charger](https://www.raspberrypi.com/products/27w-power-supply/)
 
 ### Extra Parts (Optional)
-1. 30mm M2.5 Standoffs
-2. 10mm M2.5 Standoffs
-3. 2x40 Stackable female pin header
+- 30mm M2.5 Standoffs
+- 10mm M2.5 Standoffs
+- 2x40 Stackable female pin header
 
 
 ## Setup
