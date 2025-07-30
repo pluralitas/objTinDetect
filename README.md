@@ -178,97 +178,18 @@ The MainWindow class controls the UI of the application. It inherits from QMainW
 ***
 ## Verification of the heart sound audio
 ### ECG and Audio Recording Comparison (`ECG_vs_Audio_Recording_Test.ipynb`)
-`ECG_vs_Audio_Recording_Test.ipynb` provides a Python script designed to analyze and compare Electrocardiogram (ECG) signals with corresponding heart sound audio recordings. The tool is built to run in a Jupyter Notebook and can process multiple pairs of files in a single execution.
+`ECG_vs_Audio_Recording_Test.ipynb` provides a Python script designed to analyze and compare Electrocardiogram (ECG) signals with corresponding heart sound audio recordings base on their BPM.
+***
 
-For each pair of ECG and audio files, the script performs the following actions:
-- Loads the signal data from .csv (for ECG) and .wav (for audio) files.
-- Crops the signals to a user-defined time window.
-- Resamples both signals to a consistent target sample rate for accurate comparison.
-- Detects R-peaks in the ECG signal and sound peaks in the audio signal using customizable parameters.
-- Calculates the average Beats Per Minute (BPM) from both signals.
-- Performs a paired t-test on the beat-to-beat intervals to determine if there is a statistically significant difference between the two measurement methods.
-- Generates and displays a set of three plots for each file pair: the ECG signal with detected peaks, the audio signal with detected peaks, and a boxplot comparing the distribution of beat-to-beat intervals.
-***
-### Requirements
-To run this application, you will need to have Python 3.9.21 installed, along with the following libraries:
-
-- **numpy**
-- **pandas**
-- **matplotlib**
-- **scipy**
-***
-### Code description
-1. Cell 1: Imports
-    - This cell imports all the necessary Python libraries. No changes are needed here.
-2. Cell 2: Configuration
-    - This is the only cell you need to edit.
-    - Define all the files you want to process in the file_processing_jobs list.
-    - Each "job" is a Python dictionary containing all the settings for one pair of ECG and audio files. You can add as many jobs as you need by copying the structure.
-    - Key settings include file paths, signal sample rates, cropping times, and peak detection parameters (peak_height, peak_spacing_ms, peak_width_ms).
-3. Cell 3: Processing Loop
-    - This cell contains the main logic. It loops through each job defined in Cell 2, performs the analysis, and prints the results and plots.
-***
-### Execution
-1. Open the .ipynb file in Jupyter Notebook or JupyterLab.
-2. Populate Cell 2 with the details of all the files you wish to analyze.
-3. Run the cells in order from top to bottom.
-***
-### Output
-For each job defined in the configuration cell, the script will output:
-- Console Logs: Real-time progress updates in the notebook, including file loading status, processing steps, detected peak counts, BPM values, and the results of the t-test.
-- Visual Plots: A multi-panel plot will be displayed directly below the processing cell for each job, allowing for easy visual inspection of the results.
-***
 ### Results Summary
 The numerical outputs from this script (such as mean BPM, t-statistic, and p-values) are printed to the console during execution.
 
 A comprehensive summary of the key findings and final results for all processed recordings has been compiled and is available in the accompanying Excel file:
 [`Comparison analysis of ECG and Audio waveforms.xlsx`]
+*** 
 
 ## Classification ALgorithm test
 `Audio_Classification_Test.ipynb` provides a Python script designed to analyze audio recordings (.wav files) to perform two key tasks:
 1. Sound vs. Noise Classification: It classifies an audio segment as either a meaningful "Sound" (e.g., pulsatile tinnitus) or ambient "Noise" based on the signal's amplitude variance.
 2. BPM Detection: For signals classified as "Sound," it identifies rhythmic peaks and calculates the corresponding Beats Per Minute (BPM).
 ***
-
-### Analysis methodology
-The script processes each audio file using the following steps:
-
-1. Loading and Pre-processing: The audio file is loaded, converted to mono, and its amplitude is normalized to a standard range of [-1, 1].
-2. Cropping: A specific segment of the audio file is selected for analysis based on user-defined start and end times.
-3. Chunking and RMS Calculation: The cropped audio is divided into small, consecutive, non-overlapping chunks (e.g., 50 ms). The Root Mean Square (RMS) value, which represents the effective power, is calculated for each chunk.
-4. Sound vs. Noise Classification: The script uses the standard deviation of the RMS values across all chunks. A signal with high variance (a large standard deviation) is typically pulsatile or contains distinct events and is classified as "Sound". A signal with low variance is more uniform and is classified as "Noise".
-5. BPM Detection:
-    - A dynamic threshold is calculated (Mean RMS + 1 Standard Deviation).
-    - RMS values below this threshold are set to zero, isolating the significant peaks.
-    - The script identifies the peaks in this thresholded signal.
-    - The average time interval between these peaks is calculated to estimate the final BPM.
-***
-### Requirements
-To run this application, you will need to have Python 3.9.21 installed, along with the following libraries:
-
-- **numpy**
-- **matplotlib**
-- **scipy**
-***
-### Code Description
-1. Cell 1: Imports
-    - This cell imports the necessary libraries. No changes are needed here.
-2. Cell 2: Configuration
-    - This is the only cell you need to edit.
-    - All files to be analyzed are defined in the `audio_analysis_jobs` list.
-    - To add a new file, simply copy an existing job (the block from { to }) and modify its parameters:
-        - audio_path: Set the path to your new .wav file.
-        - crop_start_s / crop_end_s: Define the time window you want to analyze.
-        - bpm_peak_distance: Adjust this to match the expected heart rate. A larger number works better for slower BPMs.
-3. Cell 3: Processing Loop
-    - Run this cell after setting up your configuration. It will automatically loop through each job, perform the full analysis, and display the outputs.
-
-***
-### Output
-For each audio file defined in the configuration, the script will produce:
-
-- A Multi-Panel Plot:
-    - Top Panel: Shows the average absolute waveform, giving a general sense of the signal's structure.
-    - Middle Panel: Displays the calculated RMS values for each chunk, used for the "Sound vs. Noise" classification.
-    - Bottom Panel: Shows the thresholded RMS signal with the detected peaks clearly marked, along with the final estimated BPM.
-- A Console Summary: Printed below the plot, this text report provides the final classification results and the calculated BPM value for easy reference.
