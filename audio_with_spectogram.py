@@ -625,7 +625,7 @@ class MainWindow(QMainWindow):
 
         # Open a standard "Save File" dialog.
         filepath, _ = QFileDialog.getSaveFileName(self, "Save Audio As",
-            os.path.join(default_filename, DEFAULT_OUTPUT_DIR), "WAV files (*.wav)")
+            os.path.join(DEFAULT_OUTPUT_DIR, default_filename), "WAV files (*.wav)")
 
         if filepath:
             self.current_audio_filepath = filepath
@@ -938,6 +938,6 @@ class MainWindow(QMainWindow):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     main_win = MainWindow()
-    main_win.show()
+    main_win.showFullScreen()
     sys.exit(app.exec_())
       
