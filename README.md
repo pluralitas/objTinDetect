@@ -17,16 +17,19 @@ This is a device used to detect objective tinnitus in the ear canal using a inea
 
 ## Setup
 Front Screen display
-![Front View](Images/Front_screen_display.jpeg)
-
-Bottom View
-![Bottom View](Images/Bottom_View.jpeg)
-
-Top View
-![Top View](Images/Top_View.jpeg)
+![Front View](Images/Front%20view.jpeg)
 
 Back View
-![Back View](Images/Back_View.jpeg)
+![Back View](Images/Back%20view.jpeg)
+
+Top View
+![Top View](Images/Top%20view.jpeg)
+
+Left View
+![Left View](Images/Left%20side%20view.jpeg)
+
+Right View
+![Right View](Images/Right%20side%20view.jpeg)
 
 ### Notes on the hardware setup
 1. I had used 3 30mm + 10mm M2.5 standoffs to elvate the Pi Sound so that the DSI cable is not squished im between the heat sink and Pi Sound. The 2x40 stackable pin header was used to extend the pin's length so that the Raspberry Pi 5 GPIO pins can reach the Pi Sound.
