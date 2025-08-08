@@ -5,7 +5,7 @@ This is a device used to detect objective tinnitus in the ear canal using a inea
 - Touch Screen: [Raspberry Pi Official 7" LCD Touch Display 2 (SC1635)](https://www.raspberrypi.com/products/touch-display-2/)
 - Sound Card: [Pi Sound](https://blokas.io/pisound/)
 - Microphone: [RØDE smartLav+](https://rode.com/en/products/smartlav-plus)
-- Adapters: [SC3, 3.5m TRRS to TRS Adaptor](https://rode.com/en/products/sc3); [AV Adapter, 3.5mm to 1/4](https://www.googleadservices.com/pagead/aclk?sa=L&ai=DChsSEwiAj4-F19KOAxWxpGYCHeLsKiQYACICCAEQGhoCc20&co=1&ase=2&gclid=Cj0KCQjwkILEBhDeARIsAL--pjwNm1FiJPDzKa9fMI-j_-p9ddxbYZ-5g3uSl7_SHG9M49bfU8sTmjEaAmcCEALw_wcB&ohost=www.google.comcid=CAESVeD2XnBelKPjYt5ecPFCVxeILIl3LmNixfIlJWfDKJTCmltC4eD1GcUrxFUE8_TawnRX1jr0jJsh3dbwZ156sKJR0OTPHmSeGGqYniwUDoaGZ18CNiA&category=acrcp_v1_45&sig=AOD64_0r7GQa_UCVvws-wRXK3miZs0S86A&ctype=5&q=&nis=4&ved=2ahUKEwjpiYWF19KOAxX6SGwGHRVZG5YQ9aACKAB6BAgJEBo&adurl=)
+- Adapters: [SC3, 3.5mm TRRS to TRS Adaptor](https://rode.com/en/products/sc3); [AV Adapter, 3.5mm to 1/4](https://www.googleadservices.com/pagead/aclk?sa=L&ai=DChsSEwiAj4-F19KOAxWxpGYCHeLsKiQYACICCAEQGhoCc20&co=1&ase=2&gclid=Cj0KCQjwkILEBhDeARIsAL--pjwNm1FiJPDzKa9fMI-j_-p9ddxbYZ-5g3uSl7_SHG9M49bfU8sTmjEaAmcCEALw_wcB&ohost=www.google.comcid=CAESVeD2XnBelKPjYt5ecPFCVxeILIl3LmNixfIlJWfDKJTCmltC4eD1GcUrxFUE8_TawnRX1jr0jJsh3dbwZ156sKJR0OTPHmSeGGqYniwUDoaGZ18CNiA&category=acrcp_v1_45&sig=AOD64_0r7GQa_UCVvws-wRXK3miZs0S86A&ctype=5&q=&nis=4&ved=2ahUKEwjpiYWF19KOAxX6SGwGHRVZG5YQ9aACKAB6BAgJEBo&adurl=)
 - Heat sinks: [Raspberry Pi 5 Heatsink](https://www.raspberrypi.com/products/active-cooler/)
 - Charger: [Raspberry Pi 5 charger](https://www.raspberrypi.com/products/27w-power-supply/)
 
@@ -29,7 +29,9 @@ Back View
 ![Back View](Images/Back_View.jpeg)
 
 ### Notes on the hardware setup
-i had used 3 30mm + 10mm M2.5 standoffs to elvate the Pi Sound so that the DSI cable is not squished im between the heat sink and Pi Sound. The 2x40 stackable pin header was used to extend the pin's length so that the Raspberry Pi 5 GPIO pins can reach the Pi Sound.
+1. I had used 3 30mm + 10mm M2.5 standoffs to elvate the Pi Sound so that the DSI cable is not squished im between the heat sink and Pi Sound. The 2x40 stackable pin header was used to extend the pin's length so that the Raspberry Pi 5 GPIO pins can reach the Pi Sound.
+
+2. I had used a SC3 3.5mm to convert the microphone's output from TRRS to TRS, afterwards it is then converted from 3.5mm to 1/4 stero using an AV adapter to connect to the PiSound.
 
 ## Objective Tinnitus Recorder python file (`audio_with_spectrogram.py`)
 
