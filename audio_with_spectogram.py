@@ -401,6 +401,23 @@ class MainWindow(QMainWindow):
             }
         """)
 
+        # --- Control Buttons ---
+        self.open_button = QPushButton("OPEN")
+        self.open_button.clicked.connect(self.handle_open_file)
+        self.open_button.setFixedHeight(button_height); self.open_button.setMinimumWidth(button_width)
+        self.open_button.setStyleSheet("""
+            QPushButton {
+                background-color: #28a745;
+                color: white;
+                font-size: 16px;
+                font-weight: bold;
+                border-radius: 6px;
+            }
+            QPushButton:hover {
+                background-color: #218838;
+            }
+        """)
+
         # Save As button
         self.save_as_button = QPushButton("SAVE")
         self.save_as_button.clicked.connect(self.handle_save_as)
@@ -437,11 +454,30 @@ class MainWindow(QMainWindow):
             }
         """)
 
+        # --- Control Buttons ---
+        self.play_button = QPushButton("PLAY")
+        self.play_button.clicked.connect(self.handle_play_audio)
+        self.play_button.setFixedHeight(button_height); self.play_button.setMinimumWidth(button_width)
+        self.play_button.setStyleSheet("""
+            QPushButton {
+                background-color: #28a745;
+                color: white;
+                font-size: 16px;
+                font-weight: bold;
+                border-radius: 6px;
+            }
+            QPushButton:hover {
+                background-color: #218838;
+            }
+        """)
+
         # --- Layout for Control Frame ---
         control_layout.addStretch(1)
         control_layout.addWidget(self.start_stop_button)
+        control_layout.addWidget(self.open_button)
         control_layout.addWidget(self.save_as_button)
         control_layout.addWidget(self.finish_reset_button)
+        control_layout.addWidget(self.play_button)
         # control_layout.addWidget(self.true_exit_button)
         control_layout.addStretch(1)
         self.control_frame.setLayout(control_layout)
@@ -607,6 +643,12 @@ class MainWindow(QMainWindow):
             self.worker_thread.recording_error.connect(self.on_recording_error_and_reset)
             self.worker_thread.finished.connect(self.on_worker_thread_actually_finished)
             self.worker_thread.start()
+
+    def handle_open_file(self):
+        return
+
+    def handle_play_audio(self):
+        return
 
     def handle_save_as(self):
         """
