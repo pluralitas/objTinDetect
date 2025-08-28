@@ -253,6 +253,46 @@ class AudioWorker(QThread):
         """
         self._is_running = False
 
+class AudioPlayer(QThread):
+    """
+    Player thread responsible for playing audio in the background.
+    """
+    status_updated = pyqtSignal(str)  # Signal for updating the status label
+
+    def __init__(self, device_params, frames):
+        super().__init__()
+        self.play_frames = np.array(frames).tobytes() #convert list to 16-bit PCM for playback
+        self.device_params = device_params
+        self._is_running = True
+    
+    def run(self):
+        p_play = pyaudio.PyAudio() # Create a new PyAudio instance for recording
+        self.status_updated.emit(f"Playing stream on {self.device_params['name']}...")
+        try:
+            stream = p_play.open(format=self.device_params['format'],
+                                   channels=self.device_params['channels'],
+                                   rate=self.device_params['rate'],
+                                   output=True,
+                                   )
+            
+            for i in range(0, len(self.play_frames), CHUNK_SIZE):
+                stream.write(self.play_frames[i:i+CHUNK_SIZE])
+
+            if self._is_running:
+                self.status_updated.emit("Finish playing.")
+        except Exception as e:
+            self.status_updated.emit(f"Error during playback: {e}")
+        finally:
+            if stream: stream.stop_stream(); stream.close()
+            p_play.terminate()
+
+    def stop(self):
+        """
+        Stops the playback by setting the running flag to False.
+        """
+        self._is_running = False
+
+
 # --- Clickable Label for PyQt5 ---
 class ClickableLabel(QLabel):
     clicked = pyqtSignal()
@@ -348,6 +388,7 @@ class MainWindow(QMainWindow):
         self.audio_controller = AudioController()
         self.sound_analyzer = SoundAnalyzer()
         self.worker_thread = None
+        self.player_thread = None
         self.recorded_frames = None
         self.current_audio_filepath = None
         self.initUI()  # Initialize the UI components
@@ -454,10 +495,11 @@ class MainWindow(QMainWindow):
             }
         """)
 
-        # --- Control Buttons ---
+        # --- Play Buttons ---
         self.play_button = QPushButton("PLAY")
         self.play_button.clicked.connect(self.handle_play_audio)
         self.play_button.setFixedHeight(button_height); self.play_button.setMinimumWidth(button_width)
+        self.play_button.setEnabled(False)
         self.play_button.setStyleSheet("""
             QPushButton {
                 background-color: #5827c4;
@@ -632,7 +674,9 @@ class MainWindow(QMainWindow):
                 "font-weight: bold; font-size: 16px; background-color: #DC3545; color: white; border-radius: 5px;"
             )
             self.save_as_button.setEnabled(False)
+            self.play_button.setEnabled(False)
             self.finish_reset_button.setEnabled(False)
+            self.open_button.setEnabled(False)
 
             # Start the background recording thread
             self.worker_thread = AudioWorker(self.audio_controller.device_params, FIXED_RECORDING_DURATION_SECONDS)
@@ -710,7 +754,38 @@ class MainWindow(QMainWindow):
         return
 
     def handle_play_audio(self):
-        return
+        """
+        Handles clicks on the "PLAY" button.
+        """
+        #Check if there is data is frames
+        if not self.recorded_frames:
+                QMessageBox.warning(self, "No Data", "Unable to play audio")
+                return
+
+        # If the player thread is currently running, the button acts as a "STOP" button.
+        if self.player_thread and self.player_thread.isRunning():
+            self.update_status_bar_text("Stop playback early....")
+            self.player_thread.stop()
+            self.player_thread.terminate()
+            self.on_player_thread_actually_finished()
+        else:
+            # Update button text and style to "STOP PLAYING".
+            self.play_button.setText("STOP PLAYING")
+            self.play_button.setStyleSheet(
+                "font-weight: bold; font-size: 16px; background-color: #DC3545; color: white; border-radius: 5px;"
+            )
+            #Disable other buttons while playing
+            self.start_stop_button.setEnabled(False)
+            self.open_button.setEnabled(False)
+            self.save_as_button.setEnabled(False)
+            self.finish_reset_button.setEnabled(False)
+
+            # Start the background playing thread
+            self.player_thread = AudioPlayer(self.audio_controller.device_params, self.recorded_frames)
+            # Connect signals from the player thread to handler methods (slots) in this MainWindow class.
+            self.player_thread.status_updated.connect(self.update_status_bar_text)
+            self.player_thread.finished.connect(self.on_player_thread_actually_finished)
+            self.player_thread.start()
 
     def handle_save_as(self):
         """
@@ -785,6 +860,8 @@ class MainWindow(QMainWindow):
             self.run_sound_check() #Start analyzing audio for presence of sound and if so, update "Pulsatile" or "Non-Pulsatile" result
             self.update_status_bar_text("Plot displayed. Ready to save.")
             self.save_as_button.setEnabled(True)
+            self.open_button.setEnabled(True)
+            self.play_button.setEnabled(True)
             self.finish_reset_button.setEnabled(True)
             self.stacked_widget.setCurrentIndex(self.PAGE_ANALYSIS)
         else:
@@ -807,10 +884,24 @@ class MainWindow(QMainWindow):
         """
         if not (self.worker_thread and self.worker_thread.isRunning()):
             self.start_stop_button.setText("START")
-            self.start_stop_button.setStyleSheet("font-weight: bold; font-size: 16px; background-color: #4CAF50; color: white; border-radius: 5px;")
+            self.start_stop_button.setStyleSheet("font-weight: bold; font-size: 16px; background-color: #4CAF50; color: white; border-radius: 6px;")
             self.start_stop_button.setEnabled(self.audio_controller.is_ready())
             if self.worker_thread:
                 self.worker_thread = None
+    
+    def on_player_thread_actually_finished(self):
+        """
+        This method is connected to QThread AudioPlayer when playback is finished
+        """
+        # Reset the start/stop button to its "PLAY" state and enable other buttons.
+        if not (self.player_thread and self.player_thread.isRunning()):
+            self.play_button.setText("PLAY")
+            self.play_button.setStyleSheet("font-weight: bold; font-size: 16px; background-color: #5827c4; color: white; border-radius: 6px;")
+            self.start_stop_button.setEnabled(True)
+            self.open_button.setEnabled(True)
+            self.play_button.setEnabled(True)
+            self.save_as_button.setEnabled(True)
+            self.finish_reset_button.setEnabled(True)
 
     def resizeEvent(self, event):
         """
@@ -1022,9 +1113,12 @@ class MainWindow(QMainWindow):
         """
         self.status_label.setText("Status: Ready" if self.audio_controller.is_ready() else "Audio device not ready")
         self.start_stop_button.setText("START")
-        self.start_stop_button.setStyleSheet("font-weight: bold; font-size: 16px; background-color: #4CAF50; color: white; border-radius: 5px;")
+        self.start_stop_button.setStyleSheet("font-weight: bold; font-size: 16px; background-color: #4CAF50; color: white; border-radius: 6px;")
         self.start_stop_button.setEnabled(self.audio_controller.is_ready())
         self.save_as_button.setEnabled(False)
+        self.play_button.setEnabled(False)
+        self.play_button.setText("PLAY")
+        self.play_button.setStyleSheet("font-weight: bold; font-size: 16px; background-color: #5827c4; color: white; border-radius: 6px;")
         self.finish_reset_button.setEnabled(False)
         self.data_stats_label.setText("Live: 0.00 MB @ 0.00 MB/s")
         if hasattr(self, 'recording_progress_bar'): self.recording_progress_bar.setValue(0)
