@@ -692,9 +692,6 @@ class MainWindow(QMainWindow):
         """
         Handles clicks on the "Open" button. This loads an audio file for analysis.
         """
-        # Reset recorded_frames before loading an audio file
-        self.recorded_frames = []
-
         # Open folder to let user select a WAV file
         filepath, _ = QFileDialog.getOpenFileName(
             self,
