@@ -4,6 +4,7 @@ import time
 import numpy as np
 from scipy import signal 
 from scipy.signal import find_peaks
+from scipy.io import wavfile
 import matplotlib
 matplotlib.use('Qt5Agg') # Use Qt5Agg for Matplotlib backend
 import matplotlib.pyplot as plt
@@ -23,7 +24,6 @@ from PyQt5.QtCore import QThread, pyqtSignal, Qt, QTimer
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import QLabel
 from PyQt5.QtCore import pyqtSignal
-
 
 # --- Configuration ---
 TARGET_SAMPLE_RATE = 192000 
@@ -460,14 +460,14 @@ class MainWindow(QMainWindow):
         self.play_button.setFixedHeight(button_height); self.play_button.setMinimumWidth(button_width)
         self.play_button.setStyleSheet("""
             QPushButton {
-                background-color: #28a745;
+                background-color: #5827c4;
                 color: white;
                 font-size: 16px;
                 font-weight: bold;
                 border-radius: 6px;
             }
             QPushButton:hover {
-                background-color: #218838;
+                background-color: #7b58c7;
             }
         """)
 
@@ -645,6 +645,68 @@ class MainWindow(QMainWindow):
             self.worker_thread.start()
 
     def handle_open_file(self):
+        """
+        Handles clicks on the "Open" button. This loads an audio file for analysis.
+        """
+        # Reset recorded_frames before loading an audio file
+        self.recorded_frames = []
+
+        # Open folder to let user select a WAV file
+        filepath, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open Audio File",
+            DEFAULT_OUTPUT_DIR,
+            "WAV files (*.wav)"
+        )
+
+        # Check if filepath exists
+        if filepath:
+            try:
+                # Read the selected WAV file
+                sample_rate, audio = wavfile.read(filepath)
+                self.update_status_bar_text("Recording loaded. Generating plots...")
+                QApplication.processEvents()
+
+                # Reset and asks user to select a correct file if the sample rate does not match the current recording settings
+                if sample_rate != self.audio_controller.device_params['rate']:
+                    self.handle_finish_reset()
+                    self.update_status_bar_text("Sample rate mismatch detected. Please select a correct audio file recorded using this device to analyze.")
+                    QMessageBox.information(self, "Wrong audio file", "Sample rate mismatch detected. Please select a correct audio file recorded using this device to analyze.")
+                    QApplication.processEvents()
+                    return
+
+                # Convert float32 to int16 if needed to match the format used when recording live
+                if audio.dtype == np.float32:
+                    audio = np.clip(audio, -1.0, 1.0) # Normalize to avoid clipping and distortion
+                    audio = (audio * 32767).astype(np.int16) # 32767 is the max int16 value
+                    
+                # Converts audio to mono if the audio loaded is multi-channel
+                if audio.ndim > 1:
+                    audio = np.mean(audio, axis=1).astype(np.int16) # obtain average across channels
+                
+                # Converts audio to bytes
+                raw_bytes = audio.tobytes()
+                
+                # Split the data into frames of size bytes_per_frame just like in live recording
+                bytes_per_sample = 2  # int16 takes 2 bytes
+                num_channels = 1      # After conversion to mono
+                bytes_per_frame = CHUNK_SIZE * bytes_per_sample * num_channels # Total bytes per frame chunk
+                formatted_frames = [raw_bytes[i:i+bytes_per_frame] for i in range(0, len(raw_bytes), bytes_per_frame)]
+                
+                # Analyze the audio from the loaded file
+                self.handle_recording_completion(formatted_frames)
+
+                # Update status bar
+                self.update_status_bar_text("Recording analyzed.")
+                QApplication.processEvents()
+
+            except Exception as e:
+                print(f"Error loading WAV file: {e}")
+                self.update_status_bar_text("Failed to load the recording.")
+                QApplication.processEvents()
+        else:
+            self.update_status_bar_text("File selection cancelled.")
+            QApplication.processEvents()
         return
 
     def handle_play_audio(self):
@@ -694,7 +756,8 @@ class MainWindow(QMainWindow):
 
     def handle_recording_completion(self, frames):
         """
-        This method is called when the AudioWorker thread finishes successfully.
+        This method is called when the AudioWorker thread finishes successfully or when an audio file is successfully loaded.
+        This function will start the analysis of the live recording or the loaded audio file.
         """
         self.recorded_frames = frames
 
@@ -719,7 +782,7 @@ class MainWindow(QMainWindow):
 
         if y is not None:
             self.update_analysis_plots(y, sr, S_mel_db)
-            self.run_sound_check()
+            self.run_sound_check() #Start analyzing audio for presence of sound and if so, update "Pulsatile" or "Non-Pulsatile" result
             self.update_status_bar_text("Plot displayed. Ready to save.")
             self.save_as_button.setEnabled(True)
             self.finish_reset_button.setEnabled(True)
@@ -824,7 +887,6 @@ class MainWindow(QMainWindow):
         # Update the result label with the appropriate text (No Sound, Pulsatile, or Non-Pulsatile)
         if self.result_label:
             self.result_label.setText(result_text)  # Display the result (Pulsatile, Non-Pulsatile, or No Sound)
-            self.result_label.adjustSize()  # Adjust the size of the label to fit the text
             self.result_label.show()  # Ensure the result label is visible
 
 # --- UI Update and Helper Methods ---
@@ -879,7 +941,6 @@ class MainWindow(QMainWindow):
 
         # Adjust the result display box layout, making sure it's not covered by the plot
         self.result_frame.setFixedHeight(100)  # Set the height of the result display box
-        self.result_label.adjustSize()  # Adjust the size of the label if necessary
 
         # Draw both canvases
         self.analysis_canvas_1.draw()
@@ -935,8 +996,6 @@ class MainWindow(QMainWindow):
         Helper to calculate the exact position for the result label.
         """
         if hasattr(self, 'result_label') and self.result_label.isVisible():
-            self.result_label.adjustSize()
-
             # Calculate the position in the middle between the two waveforms
             center_x = (canvas_pos_1.x() + canvas_pos_2.x() + canvas_width_1 + canvas_width_2) // 2
             center_y = max(canvas_pos_1.y(), canvas_pos_2.y()) + min(canvas_height_1, canvas_height_2) // 2
