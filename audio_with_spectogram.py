@@ -35,8 +35,8 @@ FIXED_RECORDING_DURATION_SECONDS = 30 #Duration of each recording in seconds
 os.makedirs(DEFAULT_OUTPUT_DIR, exist_ok=True)
 
 # --- Spectrogram Parameters ---
-SPEC_N_FFT = 8192         
-SPEC_HOP_LENGTH = 2048    
+SPEC_N_FFT = 4096 #8192         
+SPEC_HOP_LENGTH = 1024 #2048    
 SPEC_N_MELS = 128         
 SPEC_WINDOW = 'hamming'   
 
@@ -591,7 +591,7 @@ class MainWindow(QMainWindow):
         self.recording_progress_bar.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.recording_progress_bar)
 
-        self.live_waveform_placeholder = QLabel(f"Recording...\n(Live waveform placeholder)")
+        self.live_waveform_placeholder = QLabel(f"Recording...") #\n(Live waveform placeholder)")
         self.live_waveform_placeholder.setAlignment(Qt.AlignCenter)
         self.live_waveform_placeholder.setStyleSheet("background-color: #1A1A1A; border: 1px solid #333; font-size: 16px; color: #A0A0A0;")
         self.live_waveform_placeholder.setMinimumHeight(350)
