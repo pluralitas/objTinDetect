@@ -671,7 +671,7 @@ class MainWindow(QMainWindow):
             # Update button text and style to "STOP RECORDING".
             self.start_stop_button.setText("STOP RECORDING")
             self.start_stop_button.setStyleSheet(
-                "font-weight: bold; font-size: 16px; background-color: #DC3545; color: white; border-radius: 5px;"
+                "font-weight: bold; font-size: 16px; background-color: #DC3545; color: white; border-radius: 6px;"
             )
             self.save_as_button.setEnabled(False)
             self.play_button.setEnabled(False)
@@ -705,7 +705,7 @@ class MainWindow(QMainWindow):
             try:
                 # Read the selected WAV file
                 sample_rate, audio = wavfile.read(filepath)
-                self.update_status_bar_text("Recording loaded. Generating plots...")
+                self.update_status_bar_text("Recording loaded.")
                 QApplication.processEvents()
 
                 # Reset and asks user to select a correct file if the sample rate does not match the current recording settings
@@ -769,7 +769,7 @@ class MainWindow(QMainWindow):
             # Update button text and style to "STOP PLAYING".
             self.play_button.setText("STOP PLAYING")
             self.play_button.setStyleSheet(
-                "font-weight: bold; font-size: 16px; background-color: #DC3545; color: white; border-radius: 5px;"
+                "font-weight: bold; font-size: 16px; background-color: #DC3545; color: white; border-radius: 6px;"
             )
             #Disable other buttons while playing
             self.start_stop_button.setEnabled(False)
@@ -811,7 +811,6 @@ class MainWindow(QMainWindow):
             if self.audio_controller.save_audio_to_file(self.recorded_frames, filepath):
                 self.update_status_bar_text(f"Audio successfully saved to {os.path.basename(filepath)}")
                 QMessageBox.information(self, "Save Successful", f"Audio saved to:\n{filepath}")
-                self.save_as_button.setEnabled(False)
             else:
                 self.update_status_bar_text("Save failed.")
                 QMessageBox.critical(self, "Save Error", "Failed to save audio file.")
@@ -835,7 +834,7 @@ class MainWindow(QMainWindow):
 
         # Reset the start/stop button to its "START" state.
         self.start_stop_button.setText("START")
-        self.start_stop_button.setStyleSheet("font-weight: bold; font-size: 16px; background-color: #4CAF50; color: white; border-radius: 5px;")
+        self.start_stop_button.setStyleSheet("font-weight: bold; font-size: 16px; background-color: #4CAF50; color: white; border-radius: 6px;")
         self.start_stop_button.setEnabled(self.audio_controller.is_ready())
 
         # If for some reason no frames were captured, show a warning and reset.
@@ -846,7 +845,7 @@ class MainWindow(QMainWindow):
             self.finish_reset_button.setEnabled(True)
             return
 
-        self.update_status_bar_text("Recording complete. Generating plots...")
+        self.update_status_bar_text("Generating plots...")
         QApplication.processEvents()
 
         # Ask the audio controller to compute the waveform and spectrogram data.
