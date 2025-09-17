@@ -28,7 +28,7 @@ from PyQt5.QtCore import pyqtSignal
 # --- Configuration ---
 TARGET_SAMPLE_RATE = 192000 
 TARGET_CHANNELS = 1 
-TARGET_FORMAT = pyaudio.paInt16 
+TARGET_FORMAT = pyaudio.paInt32 #pyaudio.paInt16 
 CHUNK_SIZE = 4096 # Size of each audio chunk to read from the stream
 DEFAULT_OUTPUT_DIR = "OBJTIN Recording" # Folder name for saving recordings
 FIXED_RECORDING_DURATION_SECONDS = 30 #Duration of each recording in seconds
@@ -144,8 +144,13 @@ class AudioController:
         if not frames or not self.device_params: return False
         print(f"\nSaving audio to: {filepath}")
         try:
-            audio_data_np = np.frombuffer(b''.join(frames), dtype=np.int16)
-            sf.write(filepath, audio_data_np, self.device_params['rate'], subtype='PCM_16')
+            #for 16bit
+            # audio_data_np = np.frombuffer(b''.join(frames), dtype=np.int16) 
+            # sf.write(filepath, audio_data_np, self.device_params['rate'], subtype='PCM_16')
+            #for 24bit
+            audio_data_np = np.frombuffer(b''.join(frames), dtype=np.int32) #for 24bit
+            sf.write(filepath, audio_data_np, self.device_params['rate'], subtype='PCM_24')
+
             print("Audio saved successfully.")
             return True
         except Exception as e:
@@ -162,7 +167,8 @@ class AudioController:
         
         try:
             print("\nComputing analysis data from recorded frames...")
-            y = np.frombuffer(b''.join(frames), dtype=np.int16).astype(np.float32)
+            # y = np.frombuffer(b''.join(frames), dtype=np.int16).astype(np.float32) #16bit
+            y = np.frombuffer(b''.join(frames), dtype=np.int32).astype(np.float32) #24bit
             sr = self.device_params['rate']
             
             S_mel = librosa.feature.melspectrogram(
@@ -720,10 +726,12 @@ class MainWindow(QMainWindow):
                 if audio.dtype == np.float32:
                     audio = np.clip(audio, -1.0, 1.0) # Normalize to avoid clipping and distortion
                     audio = (audio * 32767).astype(np.int16) # 32767 is the max int16 value
+                    # audio = (audio *  2147483647).astype(np.int32) # 2147483647 is the max int32 value
                     
                 # Converts audio to mono if the audio loaded is multi-channel
                 if audio.ndim > 1:
-                    audio = np.mean(audio, axis=1).astype(np.int16) # obtain average across channels
+                    audio = np.mean(audio, axis=1).astype(np.int16) # obtain average across channels 16bits
+                    # audio = np.mean(audio, axis=1).astype(np.int32) # obtain average across channels 24bits
                 
                 # Converts audio to bytes
                 raw_bytes = audio.tobytes()
