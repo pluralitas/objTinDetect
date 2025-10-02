@@ -710,7 +710,9 @@ class MainWindow(QMainWindow):
         if filepath:
             try:
                 # Read the selected WAV file
-                sample_rate, audio = wavfile.read(filepath)
+                #sample_rate, audio = wavfile.read(filepath)
+                audio, sample_rate = sf.read(filepath, dtype='int32')
+
                 self.update_status_bar_text("Recording loaded.")
                 QApplication.processEvents()
 
@@ -727,6 +729,7 @@ class MainWindow(QMainWindow):
                     audio = np.clip(audio, -1.0, 1.0) # Normalize to avoid clipping and distortion
                     audio = (audio * 32767).astype(np.int16) # 32767 is the max int16 value
                     # audio = (audio *  2147483647).astype(np.int32) # 2147483647 is the max int32 value
+                    # audio = (audio * 8388607).astype(np.int32) # When converting float32 audio to int32
                     
                 # Converts audio to mono if the audio loaded is multi-channel
                 if audio.ndim > 1:
@@ -738,6 +741,7 @@ class MainWindow(QMainWindow):
                 
                 # Split the data into frames of size bytes_per_frame just like in live recording
                 bytes_per_sample = 2  # int16 takes 2 bytes
+                #bytes_per_sample = 4  # int32 takes 4 bytes
                 num_channels = 1      # After conversion to mono
                 bytes_per_frame = CHUNK_SIZE * bytes_per_sample * num_channels # Total bytes per frame chunk
                 formatted_frames = [raw_bytes[i:i+bytes_per_frame] for i in range(0, len(raw_bytes), bytes_per_frame)]
