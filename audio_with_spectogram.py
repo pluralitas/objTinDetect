@@ -28,7 +28,7 @@ from PyQt5.QtCore import pyqtSignal
 # --- Configuration ---
 TARGET_SAMPLE_RATE = 192000 
 TARGET_CHANNELS = 1 
-TARGET_FORMAT = pyaudio.paInt32 #pyaudio.paInt16 
+TARGET_FORMAT = pyaudio.paInt24 #pyaudio.paInt16 
 CHUNK_SIZE = 4096 # Size of each audio chunk to read from the stream
 DEFAULT_OUTPUT_DIR = "OBJTIN Recording" # Folder name for saving recordings
 FIXED_RECORDING_DURATION_SECONDS = 30 #Duration of each recording in seconds
