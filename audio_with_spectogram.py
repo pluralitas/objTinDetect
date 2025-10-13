@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure # Import Figure for embedding
 import pyaudio
-import soundfile as sf
+import wave
 import librosa # For Mel spectrogram
 import librosa.display # For displaying Mel spectrogram axis correctly
 
@@ -28,11 +28,15 @@ from PyQt5.QtCore import pyqtSignal
 # --- Configuration ---
 TARGET_SAMPLE_RATE = 192000 
 TARGET_CHANNELS = 1 
-TARGET_FORMAT = pyaudio.paInt24 #pyaudio.paInt16 
+TARGET_FORMAT = pyaudio.paInt16 #pyaudio.paInt16 , pyaudio.paInt24
 CHUNK_SIZE = 4096 # Size of each audio chunk to read from the stream
 DEFAULT_OUTPUT_DIR = "OBJTIN Recording" # Folder name for saving recordings
-FIXED_RECORDING_DURATION_SECONDS = 30 #Duration of each recording in seconds
+FIXED_RECORDING_DURATION_SECONDS = 1 #30 #Duration of each recording in seconds
 os.makedirs(DEFAULT_OUTPUT_DIR, exist_ok=True)
+
+#select format based on TARGET_FORMAT
+PCM_FORMAT = {pyaudio.paInt24: "PCM_24", pyaudio.paInt16: "PCM_16", pyaudio.paInt32: "PCM_32"}[TARGET_FORMAT]
+WIDTH_SAMPLE = {pyaudio.paInt24: 3, pyaudio.paInt16: 2, pyaudio.paInt32: 4}[TARGET_FORMAT] #24bits = 3bytes
 
 # --- Spectrogram Parameters ---
 SPEC_N_FFT = 4096 #8192         
@@ -144,12 +148,11 @@ class AudioController:
         if not frames or not self.device_params: return False
         print(f"\nSaving audio to: {filepath}")
         try:
-            #for 16bit
-            # audio_data_np = np.frombuffer(b''.join(frames), dtype=np.int16) 
-            # sf.write(filepath, audio_data_np, self.device_params['rate'], subtype='PCM_16')
-            #for 24bit
-            audio_data_np = np.frombuffer(b''.join(frames), dtype=np.int32) #for 24bit
-            sf.write(filepath, audio_data_np, self.device_params['rate'], subtype='PCM_24')
+            with wave.open(filepath, 'wb') as wf:
+                wf.setnchannels(1) #mono
+                wf.setsampwidth(WIDTH_SAMPLE)
+                wf.setframerate(self.device_params['rate'])
+                wf.writeframes(b''.join(frames))
 
             print("Audio saved successfully.")
             return True
@@ -297,7 +300,6 @@ class AudioPlayer(QThread):
         Stops the playback by setting the running flag to False.
         """
         self._is_running = False
-
 
 # --- Clickable Label for PyQt5 ---
 class ClickableLabel(QLabel):
@@ -710,42 +712,25 @@ class MainWindow(QMainWindow):
         if filepath:
             try:
                 # Read the selected WAV file
-                #sample_rate, audio = wavfile.read(filepath)
-                audio, sample_rate = sf.read(filepath, dtype='int32')
-
+                with wave.open(filepath,'rb') as rd:
+                    params = rd.getparams()
+                    raw_bytes = rd.readframes(params.nframes)
+                
                 self.update_status_bar_text("Recording loaded.")
                 QApplication.processEvents()
 
-                # Reset and asks user to select a correct file if the sample rate does not match the current recording settings
-                if sample_rate != self.audio_controller.device_params['rate']:
+                # Reset and asks user to select a correct file if the sample rate or sample width(16bit, 24bit) does not match the current settings
+                if params.sampwidth != WIDTH_SAMPLE or params.framerate != self.audio_controller.device_params['rate']:
                     self.handle_finish_reset()
-                    self.update_status_bar_text("Sample rate mismatch detected. Please select a correct audio file recorded using this device to analyze.")
-                    QMessageBox.information(self, "Wrong audio file", "Sample rate mismatch detected. Please select a correct audio file recorded using this device to analyze.")
+                    self.update_status_bar_text("Sample bitwidth mismatch detected. Please select a correct audio file recorded using this device to analyze.")
+                    QMessageBox.information(self, "Wrong audio file", "Sample bitwidth mismatch detected. Please select a correct audio file recorded using this device to analyze.")
                     QApplication.processEvents()
                     return
 
-                # Convert float32 to int16 if needed to match the format used when recording live
-                if audio.dtype == np.float32:
-                    audio = np.clip(audio, -1.0, 1.0) # Normalize to avoid clipping and distortion
-                    audio = (audio * 32767).astype(np.int16) # 32767 is the max int16 value
-                    # audio = (audio *  2147483647).astype(np.int32) # 2147483647 is the max int32 value
-                    # audio = (audio * 8388607).astype(np.int32) # When converting float32 audio to int32
-                    
-                # Converts audio to mono if the audio loaded is multi-channel
-                if audio.ndim > 1:
-                    audio = np.mean(audio, axis=1).astype(np.int16) # obtain average across channels 16bits
-                    # audio = np.mean(audio, axis=1).astype(np.int32) # obtain average across channels 24bits
-                
-                # Converts audio to bytes
-                raw_bytes = audio.tobytes()
-                
-                # Split the data into frames of size bytes_per_frame just like in live recording
-                bytes_per_sample = 2  # int16 takes 2 bytes
-                #bytes_per_sample = 4  # int32 takes 4 bytes
-                num_channels = 1      # After conversion to mono
-                bytes_per_frame = CHUNK_SIZE * bytes_per_sample * num_channels # Total bytes per frame chunk
+                # # Split the data into frames of size bytes_per_frame just like in live recording
+                bytes_per_frame = CHUNK_SIZE #* params.sampwidth # Total bytes per frame chunk
                 formatted_frames = [raw_bytes[i:i+bytes_per_frame] for i in range(0, len(raw_bytes), bytes_per_frame)]
-                
+
                 # Analyze the audio from the loaded file
                 self.handle_recording_completion(formatted_frames)
 

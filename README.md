@@ -49,7 +49,7 @@ To run this application, you will need to have Python 3.9.21 installed, along wi
 - **NumPy:** For numerical operations on audio data.
 - **SciPy:** Used for signal processing, specifically for finding peaks.
 - **librosa:** For advanced audio analysis and Mel spectrogram generation.
-- **soundfile:** For saving the recorded audio to a `.wav` file.
+- **wave:** For saving/opening the recorded audio to/from a `.wav` file.
 - **Matplotlib:** For plotting the waveform and spectrogram.
 
 ### Configurations
@@ -112,6 +112,7 @@ The AudioController class serves as the backend for all low-level audio operatio
 
 - Audio Processing
     - Saves raw recorded audio frames into a `.wav`  file.
+    - Opens raw recorded `.wav` files into audio frames for analysis.
     - Converts raw byte frames into a Numpy array (`y`).
     - Generates the Log-Mel Spectrogram (`S_mel_db`).
 
@@ -134,6 +135,10 @@ This class is a QThread designed to perform the audio recording in the backgroun
 
 - Stopping
     - Uses a `stop()` to allos the main thread to interrupt the recording loop early when the user uses the Stop Button.
+***
+
+#### `AudioPlayer`
+This class is a QThread designed to play the audio recordings. When playing the audio, only the "Play/Stop" button is active.
 ***
 #### `ClickableLabel`
 A simple class that extends `Qlabel` to add a click functionality.
