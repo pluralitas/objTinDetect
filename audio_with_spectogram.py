@@ -31,7 +31,7 @@ TARGET_CHANNELS = 1
 TARGET_FORMAT = pyaudio.paInt16 #pyaudio.paInt16 , pyaudio.paInt24
 CHUNK_SIZE = 4096 # Size of each audio chunk to read from the stream
 DEFAULT_OUTPUT_DIR = "OBJTIN Recording" # Folder name for saving recordings
-FIXED_RECORDING_DURATION_SECONDS = 1 #30 #Duration of each recording in seconds
+FIXED_RECORDING_DURATION_SECONDS = 30 #30 #Duration of each recording in seconds
 os.makedirs(DEFAULT_OUTPUT_DIR, exist_ok=True)
 
 #select format based on TARGET_FORMAT
@@ -270,7 +270,7 @@ class AudioPlayer(QThread):
 
     def __init__(self, device_params, frames):
         super().__init__()
-        self.play_frames = np.array(frames).tobytes() #convert list to 16-bit PCM for playback
+        self.play_frames = b''.join(frames)#np.array(frames).tobytes() #convert list to 16-bit PCM for playback
         self.device_params = device_params
         self._is_running = True
     
