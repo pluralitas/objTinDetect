@@ -26,12 +26,12 @@ from PyQt5.QtWidgets import QLabel
 from PyQt5.QtCore import pyqtSignal
 
 # --- Configuration ---
-TARGET_SAMPLE_RATE = 192000 
+TARGET_SAMPLE_RATE = 192000 #48000
 TARGET_CHANNELS = 1 
-TARGET_FORMAT = pyaudio.paInt16 #pyaudio.paInt16 , pyaudio.paInt24
-CHUNK_SIZE = 4096 # Size of each audio chunk to read from the stream
+TARGET_FORMAT = pyaudio.paInt24 #pyaudio.paInt16 , pyaudio.paInt24
+CHUNK_SIZE = 2**15 # Size of each audio chunk to read from the stream
 DEFAULT_OUTPUT_DIR = "OBJTIN Recording" # Folder name for saving recordings
-FIXED_RECORDING_DURATION_SECONDS = 30 #30 #Duration of each recording in seconds
+FIXED_RECORDING_DURATION_SECONDS = 30 # Duration of each recording in seconds
 os.makedirs(DEFAULT_OUTPUT_DIR, exist_ok=True)
 
 #select format based on TARGET_FORMAT
@@ -96,12 +96,13 @@ class AudioController:
             device_index = default_info['index']
             device_name = default_info['name']
             print(f"Checking default input device: {device_name} (Index: {device_index})")
-            if default_info.get('maxInputChannels', 0) >= TARGET_CHANNELS and \
-               self.pyaudio_instance.is_format_supported(TARGET_SAMPLE_RATE, input_device=device_index,
-                                                         input_channels=TARGET_CHANNELS, input_format=TARGET_FORMAT):
+            if default_info.get('maxInputChannels', 0) >= TARGET_CHANNELS and self.pyaudio_instance.is_format_supported(TARGET_SAMPLE_RATE, input_device=device_index,input_channels=TARGET_CHANNELS, input_format=TARGET_FORMAT):
                 self.device_params = {
-                    'index': device_index, 'name': device_name, 'rate': TARGET_SAMPLE_RATE,
-                    'channels': TARGET_CHANNELS, 'format': TARGET_FORMAT,
+                    'index': device_index, 
+                    'name': device_name, 
+                    'rate': TARGET_SAMPLE_RATE,
+                    'channels': TARGET_CHANNELS, 
+                    'format': TARGET_FORMAT,
                     'max_input_channels': default_info.get('maxInputChannels')
                 }
                 print(f"Default device '{device_name}' supports the target configuration.")
