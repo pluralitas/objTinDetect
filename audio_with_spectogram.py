@@ -171,10 +171,34 @@ class AudioController:
         
         try:
             print("\nComputing analysis data from recorded frames...")
-            # y = np.frombuffer(b''.join(frames), dtype=np.int16).astype(np.float32) #16bit
-            y = np.frombuffer(b''.join(frames), dtype=np.int32).astype(np.float32) #24bit
+
+            if WIDTH_SAMPLE == 4 :
+                y = np.frombuffer(b''.join(frames), dtype=np.int32).astype(np.float32) #32bit
+            elif WIDTH_SAMPLE == 3:
+                #Join list of bytes
+                buffer = b''.join(frames)
+                nframes = len(buffer) // WIDTH_SAMPLE
+
+                #truncate data that isnt in multiple of frame_size
+                buffer = buffer[:nframes*WIDTH_SAMPLE]
+
+                #convert each byte to an 8-bit integer and reshape for flattening by 3bytes
+                u8 = np.frombuffer(buffer,dtype=np.uint8).reshape(-1,3)
+
+                #flattening to int32
+                int32 = (u8[..., 0].astype(np.int32) | (u8[..., 1].astype(np.int32) << 8) | (u8[..., 2].astype(np.int32) << 16))
+                int32 -= (int32 & 0x800000) << 1 
+
+                # Extend signed bit from original to 32-bit signed:
+                # If value >= 2^23 (3bytes), subtract 2^24 to get negative range
+                y = int32.astype(np.float32) / (1 << 23)
+
+            else:
+                y = np.frombuffer(b''.join(frames), dtype=np.int16).astype(np.float32) #16bit
+
             sr = self.device_params['rate']
             
+            S_mel = [0]
             S_mel = librosa.feature.melspectrogram(
                 y=y, sr=sr, n_fft=SPEC_N_FFT, hop_length=SPEC_HOP_LENGTH,
                 n_mels=SPEC_N_MELS, window=SPEC_WINDOW
