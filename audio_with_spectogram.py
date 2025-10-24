@@ -26,7 +26,7 @@ from PyQt5.QtWidgets import QLabel
 from PyQt5.QtCore import pyqtSignal
 
 # --- Configuration ---
-TARGET_SAMPLE_RATE = 192000 #48000
+TARGET_SAMPLE_RATE = 48000 #48000
 TARGET_CHANNELS = 1 
 TARGET_FORMAT = pyaudio.paInt24 #pyaudio.paInt16 , pyaudio.paInt24
 CHUNK_SIZE = 2**15 # Size of each audio chunk to read from the stream
@@ -272,6 +272,7 @@ class AudioPlayer(QThread):
     def __init__(self, device_params, frames):
         super().__init__()
         self.play_frames = b''.join(frames)#np.array(frames).tobytes() #convert list to 16-bit PCM for playback
+        self.play_frames = frames #b''.join(frames)
         self.device_params = device_params
         self._is_running = True
     
@@ -282,11 +283,11 @@ class AudioPlayer(QThread):
             stream = p_play.open(format=self.device_params['format'],
                                    channels=self.device_params['channels'],
                                    rate=self.device_params['rate'],
-                                   output=True,
+                                   frames_per_buffer=CHUNK_SIZE,
+                                   output=True
                                    )
-            
-            for i in range(0, len(self.play_frames), CHUNK_SIZE):
-                stream.write(self.play_frames[i:i+CHUNK_SIZE])
+            for i in range(0,len(self.play_frames)):
+                stream.write(self.play_frames[i])
 
             if self._is_running:
                 self.status_updated.emit("Finish playing.")
@@ -714,24 +715,25 @@ class MainWindow(QMainWindow):
             try:
                 # Read the selected WAV file
                 with wave.open(filepath,'rb') as rd:
-                    params = rd.getparams()
-                    raw_bytes = rd.readframes(params.nframes)
-                
+
+                    # Reset and asks user to select a correct file if the sample rate or sample width(16bit, 24bit) does not match the current settings
+                    if rd.getnchannels() != self.audio_controller.device_params['channels'] or rd.getsampwidth() != WIDTH_SAMPLE or rd.getframerate() != self.audio_controller.device_params['rate']:
+                        self.handle_finish_reset()
+                        self.update_status_bar_text("Sample bitwidth mismatch detected. Please select a correct audio file recorded using this device to analyze.")
+                        QMessageBox.information(self, "Wrong audio file", "Sample bitwidth mismatch detected. Please select a correct audio file recorded using this device to analyze.")
+                        QApplication.processEvents()
+                        return
+
+                    # Read the data into frames of size frames_per_buffer just like in live recording 
+                    while True:
+                        data=rd.readframes(frames_per_buffer)
+                        if not data:
+                            break
+                        formatted_frames.append(data)
+
                 self.update_status_bar_text("Recording loaded.")
                 QApplication.processEvents()
-
-                # Reset and asks user to select a correct file if the sample rate or sample width(16bit, 24bit) does not match the current settings
-                if params.sampwidth != WIDTH_SAMPLE or params.framerate != self.audio_controller.device_params['rate']:
-                    self.handle_finish_reset()
-                    self.update_status_bar_text("Sample bitwidth mismatch detected. Please select a correct audio file recorded using this device to analyze.")
-                    QMessageBox.information(self, "Wrong audio file", "Sample bitwidth mismatch detected. Please select a correct audio file recorded using this device to analyze.")
-                    QApplication.processEvents()
-                    return
-
-                # # Split the data into frames of size bytes_per_frame just like in live recording
-                bytes_per_frame = CHUNK_SIZE #* params.sampwidth # Total bytes per frame chunk
-                formatted_frames = [raw_bytes[i:i+bytes_per_frame] for i in range(0, len(raw_bytes), bytes_per_frame)]
-
+                
                 # Analyze the audio from the loaded file
                 self.handle_recording_completion(formatted_frames)
 
@@ -756,6 +758,11 @@ class MainWindow(QMainWindow):
         if not self.recorded_frames:
                 QMessageBox.warning(self, "No Data", "Unable to play audio")
                 return
+        
+        if len(b''.join(self.recorded_frames)) % CHUNK_SIZE != 0:
+            self.update_status_bar_text("Audio data length is not a multiple of {WIDTH_SAMPLE}.")
+            QMessageBox.information(self, "Sample bitrate mismatch detected.", "Audio file does not match bitrate. Please select a correct audio file recorded using this device to analyze.")
+            QApplication.processEvents()
 
         # If the player thread is currently running, the button acts as a "STOP" button.
         if self.player_thread and self.player_thread.isRunning():
