@@ -271,7 +271,6 @@ class AudioPlayer(QThread):
 
     def __init__(self, device_params, frames):
         super().__init__()
-        self.play_frames = b''.join(frames)#np.array(frames).tobytes() #convert list to 16-bit PCM for playback
         self.play_frames = frames #b''.join(frames)
         self.device_params = device_params
         self._is_running = True
@@ -710,6 +709,10 @@ class MainWindow(QMainWindow):
             "WAV files (*.wav)"
         )
 
+        frame_size = self.audio_controller.device_params['channels'] * WIDTH_SAMPLE
+        frames_per_buffer = max(1,CHUNK_SIZE // frame_size)
+        bytes_per_chunk = frames_per_buffer * frame_size
+        formatted_frames = []
         # Check if filepath exists
         if filepath:
             try:
