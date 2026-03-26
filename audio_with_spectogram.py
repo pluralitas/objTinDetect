@@ -24,6 +24,7 @@ from PyQt5.QtCore import QThread, pyqtSignal, Qt, QTimer
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import QLabel
 from PyQt5.QtCore import pyqtSignal
+import joblib
 
 # --- Configuration ---
 TARGET_SAMPLE_RATE = 48000 #48000
@@ -339,28 +340,104 @@ class SoundAnalyzer:
     Provides methods for analyzing audio data to detect sound events
     and classify them as pulsatile or non-pulsatile.
     """
+    LOGREG_MODEL_PATH = "Experiment_recordings/logreg_pipeline6.pkl"  # Path to the trained logistic regression model
     def __init__(self):
-        # No specific initialization needed for these static-like methods
-        pass
+        # ----------------------------
+        # Load logistic regression model 
+        # ----------------------------
+        try:
+            bundle = joblib.load(self.LOGREG_MODEL_PATH)
+            self.clf = bundle["model"]
+            self.THRESHOLD = bundle["threshold"]
+            print("Model loaded successfully")
+            print("Current working directory:", os.getcwd())
+        except Exception as e:
+            print(f"Failed to load model: {e}")
 
+    # ----------------------------
+    # Feature extraction function (same as training)
+    # ----------------------------
+    def extract_features(self, y, sr):
+        """
+        Extract 17 features from audio waveform:
+        - RMS relative ratio
+        - MFCCs mean (13)
+        - Spectral centroid & bandwidth mean
+        - Zero crossing rate
+        """
+        features = []
+
+        if y is None or len(y) == 0:
+            features.append(0)
+            return features
+
+        # === Match Pi preprocessing ===
+        y = y.astype(np.float32)
+        if np.max(np.abs(y)) > 0:
+            y /= np.max(np.abs(y))
+        abs_waveform = np.abs(y)
+
+        chunk_size = int(0.05 * sr) # window duration 50ms
+        n_chunks = len(abs_waveform) // chunk_size
+        rr = 0
+        if n_chunks > 0:
+            y_chunks = abs_waveform[:n_chunks * chunk_size].reshape(n_chunks, chunk_size)
+            rms = np.sqrt(np.mean(y_chunks**2, axis=1))
+            rr = np.std(rms) / np.mean(rms) if np.mean(rms) > 0 else 0
+        features.append(rr)
+
+        # MFCCs (13)
+        mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
+        features.extend(np.mean(mfcc, axis=1))
+
+        # Spectral centroid & bandwidth
+        sc = librosa.feature.spectral_centroid(y=y, sr=sr)
+        sbw = librosa.feature.spectral_bandwidth(y=y, sr=sr)
+        features.append(np.mean(sc))
+        features.append(np.mean(sbw))
+
+        # Zero crossing rate
+        zcr = librosa.feature.zero_crossing_rate(y=y)
+        features.append(np.mean(zcr))
+
+        return np.array(features)
+
+    # ----------------------------
+    # Analyze audio using trained logistic regression
+    # ----------------------------
     def analyze_audio(self, y, sample_rate):
         """
         Analyze audio to detect sound presence and classify it as pulsatile or non-pulsatile.
         Returns a tuple: (sound_detected, pulsatile_result).
         """
+
+        # === Feature extraction for logistic regression ===
+        features = self.extract_features(y, sample_rate).reshape(1, -1)  # 1 sample, 17 features
+
+        # === Sound Detection using Logistic Regression ===
+        y_prob = self.clf.predict_proba(features)[0][1]  # Probability of "sound"
+        sound_detected = y_prob > self.THRESHOLD # optimized by the model
+
+        # If sound is not detected, return early with "No Sound"
+        if not sound_detected:
+            return False, "No Sound"  # No sound detected, return "No Sound"
+
+        # === Preparing for pulsatile analysis ===
         if y is None or len(y) == 0:
             return False, "Error"  # Return "Error" if no audio data is available
 
         # Normalize the waveform
         y = y.astype(np.float32)
-        y /= np.max(np.abs(y))  # Normalize the audio signal to [-1, 1]
-
-        # === Absolute waveform ===
+        if np.max(np.abs(y)) > 0:
+            y /= np.max(np.abs(y))  # Normalize the audio signal to [-1, 1]
         abs_waveform = np.abs(y)
 
         # === Chunking ===
         chunk_size = int(sample_rate * (WINDOW_DURATION_MS / 1000))
         num_chunks = len(abs_waveform) // chunk_size
+        if num_chunks < 2:
+            return True, "Non-Pulsatile"  # Not enough chunks to analyze pulsatility
+
         usable_waveform = abs_waveform[:num_chunks * chunk_size]
         chunks = usable_waveform.reshape(num_chunks, chunk_size)
 
@@ -368,14 +445,6 @@ class SoundAnalyzer:
         rms_values = np.sqrt(np.mean(chunks**2, axis=1))
         mean_rms = np.mean(rms_values)
         std_rms = np.std(rms_values)
-
-        # === Sound Detection (Relative RMS Threshold) ===
-        relative_ratio = std_rms / mean_rms
-        sound_detected = relative_ratio > RELATIVE_THRESHOLD  # If ratio exceeds threshold, sound is detected
-
-        # If sound is not detected, return early with "No Sound"
-        if not sound_detected:
-            return False, "No Sound"  # No sound detected, return "No Sound"
 
         # === Threshold RMS to create cropped RMS (set values below threshold to 0) ===
         rms_threshold = mean_rms + std_rms
@@ -390,6 +459,9 @@ class SoundAnalyzer:
         peak_times = time_axis[peaks]  # Retrieve time for each marked peak
 
         # Calculate the intervals between consecutive peaks (in seconds)
+        if len(peak_times) < 2:
+            return True, "Non-Pulsatile"  # Not enough peaks to compute BPM
+
         peak_intervals = np.diff(peak_times)
 
         # Calculate the average peak interval
